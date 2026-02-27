@@ -266,7 +266,7 @@ const verifyFace = async (formData) => {
       const { token, token_type } = data
       
       // トークンをlocalStorageに保存
-      localStorage.setItem('token', token)
+      localStorage.setItem('user_token', token)
       localStorage.setItem('token_type', token_type)
 
       // ユーザー情報を含む成功メッセージを表示

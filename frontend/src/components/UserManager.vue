@@ -387,7 +387,7 @@ const formatDate = (dateString) => {
 const fetchUsers = async () => {
   loading.value = true
   try {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('user_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
     // クエリパラメータを構築
@@ -469,7 +469,7 @@ const submitForm = async () => {
 
   try {
     let response
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('user_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
     const userData = {
@@ -487,7 +487,7 @@ const submitForm = async () => {
       response = await apiClient.put(`/api/v1/admin/users/${userForm.id}`, userData)
     } else {
       // 新しいユーザーを作成
-      response = await apiClient.post(`/api/v1/admin/users/`, {
+      response = await apiClient.post(`/api/v1/admin/users`, {
         ...userData,
         password: userForm.password
       })
@@ -538,7 +538,7 @@ const updateUserFace = async (imageData) => {
     const userId = selectedUserForFace.value.id;
 
     // トークンを取得
-    const token = localStorage.getItem('token') || '';
+    const token = localStorage.getItem('user_token') || '';
 
     // base64画像データをblobに変換してフォームデータに追加
     const byteCharacters = atob(imageData.split(',')[1]); // data:image/jpeg;base64,プレフィックスを削除
@@ -601,7 +601,7 @@ const handleStatusChange = async (user) => {
   try {
     statusLoading.value[user.id] = true
 
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('user_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
     const response = await apiClient.put(`/api/v1/admin/users/${user.id}`, {
@@ -698,7 +698,7 @@ const batchUpdateStatus = async (isActive) => {
       }
     )
 
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('user_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
     // 新しい一括操作APIエンドポイントを使用
@@ -766,7 +766,7 @@ const confirmPasswordReset = async () => {
   submitting.value = true
 
   try {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('user_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
     // 新しい一括パスワードリセットAPIエンドポイントを使用
@@ -840,7 +840,7 @@ const batchDeleteFace = async () => {
       }
     )
 
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('user_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
     // 新しい一括顔データリセットAPIエンドポイントを使用

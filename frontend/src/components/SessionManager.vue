@@ -1,52 +1,69 @@
 <template>
-  <div v-if="showSessionBox" class="session-manager-box">
-    <div class="session-info">
-      <div class="session-status">
-        <el-tag :type="sessionStatus.type" size="small">
-          {{ sessionStatus.text }}
-        </el-tag>
-      </div>
+  <div v-if="showSessionBox" class="session-manager-wrapper">
+    <!-- 折りたたみボタン -->
+    <div 
+      class="fold-toggle" 
+      :class="{ 'folded': isFolded }"
+      @click="toggleFold"
+    >
+      <el-button 
+        circle 
+        size="small" 
+        :type="sessionStatus.type"
+        :icon="isFolded ? 'ArrowLeft' : 'ArrowRight'"
+      />
+    </div>
+    
+    <!-- セッション管理パネル -->
+    <div class="session-manager-box" :class="{ 'folded': isFolded }">
+      <div class="session-info">
+        <div class="session-status">
+          <el-tag :type="sessionStatus.type" size="small">
+            {{ sessionStatus.text }}
+          </el-tag>
+        </div>
       
       <div v-if="sessionData" class="session-details">
         <div class="expire-info">
-          <span class="label">过期时间:</span>
+          <span class="label">有効期限:</span>
           <span class="value">{{ formatExpireTime(sessionData.expires_at) }}</span>
         </div>
         <div class="remaining-info">
-          <span class="label">剩余时间:</span>
+          <span class="label">残り時間:</span>
           <span class="value">{{ formatRemainingTime(sessionData.remaining_time) }}</span>
         </div>
       </div>
       
-      <div v-if="errorMessage" class="error-message">
-        <el-alert
-          :title="errorMessage"
-          type="error"
-          :closable="false"
-          show-icon
-        />
+        <div v-if="errorMessage" class="error-message">
+          <el-alert
+            :title="errorMessage"
+            type="error"
+            :closable="false"
+            show-icon
+          />
+        </div>
       </div>
-    </div>
     
-    <div class="session-actions">
-      <el-button 
-        size="small" 
-        type="primary" 
-        @click="refreshSessionInfo"
-        :loading="refreshing"
-        :disabled="!hasValidSession"
-      >
-        刷新信息
-      </el-button>
-      <el-button 
-        size="small" 
-        type="danger" 
-        @click="deleteCurrentSession"
-        :loading="deleting"
-        :disabled="!hasValidSession"
-      >
-        删除会话
-      </el-button>
+      <div class="session-actions">
+        <el-button 
+          size="small" 
+          type="primary" 
+          @click="refreshSessionInfo"
+          :loading="refreshing"
+          :disabled="!hasValidSession"
+        >
+          情報を更新
+        </el-button>
+        <el-button 
+          size="small" 
+          type="danger" 
+          @click="deleteCurrentSession"
+          :loading="deleting"
+          :disabled="!hasValidSession"
+        >
+          セッションを削除
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -75,6 +92,7 @@ const refreshing = ref(false)
 const deleting = ref(false)
 const errorMessage = ref('')
 const timer = ref(null)
+const isFolded = ref(false)
 
 // 计算属性
 const hasValidSession = computed(() => {
@@ -87,20 +105,20 @@ const showSessionBox = computed(() => {
 
 const sessionStatus = computed(() => {
   if (errorMessage.value) {
-    return { type: 'danger', text: '会话错误' }
+    return { type: 'danger', text: 'セッションエラー' }
   }
   if (!props.sessionToken) {
-    return { type: 'warning', text: '无会话' }
+    return { type: 'warning', text: 'セッションなし' }
   }
   if (sessionData.value?.is_expired) {
-    return { type: 'danger', text: '会话已过期' }
+    return { type: 'danger', text: 'セッション期限切れ' }
   }
-  return { type: 'success', text: '会话有效' }
+  return { type: 'success', text: 'セッション有効' }
 })
 
-// 格式化过期时间
+// 有効期限をフォーマット
 const formatExpireTime = (expireTime) => {
-  if (!expireTime) return '未知'
+  if (!expireTime) return '不明'
   try {
     const date = new Date(expireTime)
     return date.toLocaleString('zh-CN')
@@ -109,24 +127,24 @@ const formatExpireTime = (expireTime) => {
   }
 }
 
-// 格式化剩余时间
+// 残り時間をフォーマット
 const formatRemainingTime = (seconds) => {
-  if (seconds <= 0) return '已过期'
+  if (seconds <= 0) return '期限切れ'
   
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = seconds % 60
   
   if (hours > 0) {
-    return `${hours}小时${minutes}分钟`
+    return `${hours}時間${minutes}分`
   } else if (minutes > 0) {
-    return `${minutes}分钟${secs}秒`
+    return `${minutes}分${secs}秒`
   } else {
     return `${secs}秒`
   }
 }
 
-// 获取会话信息
+// セッション情報を取得
 const getSessionInfo = async () => {
   if (!props.sessionToken) return
   
@@ -147,36 +165,36 @@ const getSessionInfo = async () => {
         emit('sessionExpired')
       }
     } else {
-      throw new Error(response.data.detail || '获取会话信息失败')
+      throw new Error(response.data.detail || 'セッション情報の取得に失敗しました')
     }
   } catch (error) {
-    console.error('获取会话信息失败:', error)
-    errorMessage.value = error.response?.data?.detail || error.message || '获取会话信息失败'
+    console.error('セッション情報の取得に失敗しました:', error)
+    errorMessage.value = error.response?.data?.detail || error.message || 'セッション情報の取得に失敗しました'
     sessionData.value = null
   } finally {
     refreshing.value = false
   }
 }
 
-// 刷新会话信息
+// セッション情報を更新
 const refreshSessionInfo = async () => {
   await getSessionInfo()
   if (!errorMessage.value) {
-    ElMessage.success('会话信息已刷新')
+    ElMessage.success('セッション情報が更新されました')
   }
 }
 
-// 删除当前会话
+// 現在のセッションを削除
 const deleteCurrentSession = async () => {
   if (!props.sessionToken) return
   
   try {
     await ElMessageBox.confirm(
-      '确定要删除当前会话吗？删除后需要重新创建会话才能继续使用系统。',
-      '确认删除',
+      '現在のセッションを削除してもよろしいですか？削除後はシステムを続けるために新しいセッションを作成する必要があります。',
+      '削除の確認',
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: '確定',
+        cancelButtonText: 'キャンセル',
         type: 'warning',
       }
     )
@@ -191,23 +209,23 @@ const deleteCurrentSession = async () => {
     })
     
     if (response.data.code === 200) {
-      ElMessage.success('会话删除成功')
+      ElMessage.success('セッションが正常に削除されました')
       sessionData.value = null
       emit('sessionDeleted')
     } else {
-      throw new Error(response.data.detail || '删除会话失败')
+      throw new Error(response.data.detail || 'セッションの削除に失敗しました')
     }
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除会话失败:', error)
-      errorMessage.value = error.response?.data?.detail || error.message || '删除会话失败'
+      console.error('セッションの削除に失敗しました:', error)
+      errorMessage.value = error.response?.data?.detail || error.message || 'セッションの削除に失敗しました'
     }
   } finally {
     deleting.value = false
   }
 }
 
-// 定时更新剩余时间
+// 残り時間を定期的に更新
 const updateRemainingTime = () => {
   if (sessionData.value && sessionData.value.remaining_time > 0) {
     sessionData.value.remaining_time -= 1
@@ -218,7 +236,7 @@ const updateRemainingTime = () => {
   }
 }
 
-// 启动定时器
+// タイマーを起動
 const startTimer = () => {
   if (timer.value) {
     clearInterval(timer.value)
@@ -226,7 +244,7 @@ const startTimer = () => {
   timer.value = setInterval(updateRemainingTime, 1000)
 }
 
-// 清理定时器
+// タイマーをクリーンアップ
 const stopTimer = () => {
   if (timer.value) {
     clearInterval(timer.value)
@@ -234,7 +252,12 @@ const stopTimer = () => {
   }
 }
 
-// 监听sessionToken变化
+// 折りたたみ状態を切り替え
+const toggleFold = () => {
+  isFolded.value = !isFolded.value
+}
+
+// sessionTokenの変化を監視
 watch(() => props.sessionToken, (newToken) => {
   if (newToken) {
     getSessionInfo()
@@ -259,17 +282,42 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.session-manager-box {
+.session-manager-wrapper {
   position: fixed;
-  top: 20px;
+  top: 100px;
   right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+}
+
+.fold-toggle {
+  margin-right: 8px;
+  transition: transform 0.3s ease;
+}
+
+.fold-toggle.folded {
+  transform: translateX(-8px);
+}
+
+.session-manager-box {
   width: 320px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
   padding: 16px;
   border: 1px solid #ebeef5;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.session-manager-box.folded {
+  width: 0;
+  padding: 0 0 0 0;
+  border-width: 0;
+  box-shadow: none;
+  margin-left: 0;
 }
 
 .session-info {

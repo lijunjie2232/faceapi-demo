@@ -1,88 +1,110 @@
 <template>
   <div id="app">
-    <!-- 会话管理浮动框 -->
-    <SessionManager 
-      :api-base-url="API_BASE_URL"
-      :session-token="sessionToken"
-      @session-expired="handleSessionExpired"
-      @session-deleted="handleSessionDeleted"
-    />
-
-    <el-container v-if="hasValidSession">
-      <el-header class="app-header">
-        <div class="header-content">
-          <h1 class="app-title">
-            <el-icon>
-              <User />
-            </el-icon>
-            <span>Face Recognition System (Demo)</span>
-          </h1>
-          <div class="user-actions">
-            <el-button v-if="userInfo && userInfo.is_admin" class="admin-link-btn" type="text" @click="goToAdmin">
-              <el-icon>
-                <Management />
-              </el-icon>
-              <span>Admin</span>
-            </el-button>
-            <el-dropdown placement="bottom-end">
-              <el-button class="user-profile-btn" type="text">
-                <span class="user-name">{{ username }}</span>
-                <el-icon>
-                  <ArrowDown />
-                </el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="goToProfile">Profile</el-dropdown-item>
-                  <el-dropdown-item @click="logout">Logout</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-        </div>
-      </el-header>
-
-      <el-main class="app-main">
-        <router-view />
-      </el-main>
-
-      <el-footer class="app-footer">
-        <p class="footer-text">Face Recognition System &copy; {{ currentYear }} | Advanced Facial Recognition Technology
-        </p>
-      </el-footer>
-    </el-container>
-
-    <!-- 无有效会话时不显示任何内容 -->
-    <div v-if="!hasValidSession && initializing" class="initializing-screen">
-      <div class="loading-content">
+    <!-- セッションチェック段階 - 基本ロード画面のみ表示 -->
+    <div v-if="sessionChecking" class="session-check-screen">
+      <div class="checking-content">
         <el-skeleton :rows="5" animated />
-        <p class="loading-text">正在初始化会话...</p>
+        <p class="checking-text">セッション状態を確認中...</p>
       </div>
     </div>
 
-    <!-- 会话创建失败提示 -->
-    <div v-if="sessionCreationFailed" class="session-error-screen">\      <div class="error-content">
+    <!-- セッション作成失敗通知 -->
+    <div v-else-if="sessionCreationFailed" class="session-error-screen">
+      <div class="error-content">
         <el-result
           icon="error"
-          title="无法创建会话"
-          sub-title="当前IP已有活跃会话或服务器暂时不可用，请稍后再试"
+          title="セッションを作成できません"
+          :sub-title="errorMessage || '現在のIPには既にアクティブなセッションがあるか、サーバーが一時的に利用できません。後でもう一度お試しください'"
         >
           <template #extra>
-            <el-button type="primary" @click="retryCreateSession">重试</el-button>
-            <el-button @click="checkExistingSession">检查现有会话</el-button>
+            <el-button type="primary" @click="handleRetryCreateSession" :loading="retrying">再試行</el-button>
+            <el-button @click="checkCurrentSessionStatus">既存セッションを確認</el-button>
           </template>
         </el-result>
+      </div>
+    </div>
+
+    <!-- セッション有効時にメインアプリを表示 -->
+    <template v-else-if="isSessionValid">
+      <!-- セッション管理フローティングボックス -->
+      <SessionManager 
+        :api-base-url="API_BASE_URL"
+        :session-token="sessionToken"
+        @session-expired="handleSessionExpired"
+        @session-deleted="handleSessionDeleted"
+      />
+
+      <el-container>
+        <el-header class="app-header">
+          <div class="header-content">
+            <h1 class="app-title">
+              <el-icon>
+                <User />
+              </el-icon>
+              <span>顔認識システム（デモ）</span>
+            </h1>
+            <div class="user-actions">
+              <el-button v-if="userInfo && userInfo.is_admin" class="admin-link-btn" type="text" @click="goToAdmin">
+                <el-icon>
+                  <Management />
+                </el-icon>
+                <span>管理者</span>
+              </el-button>
+              <el-dropdown placement="bottom-end">
+                <el-button class="user-profile-btn" type="text">
+                  <span class="user-name">{{ username }}</span>
+                  <el-icon>
+                    <ArrowDown />
+                  </el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="goToProfile">プロフィール</el-dropdown-item>
+                    <el-dropdown-item @click="logout">ログアウト</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </div>
+        </el-header>
+
+        <el-main class="app-main">
+          <router-view />
+        </el-main>
+
+        <el-footer class="app-footer">
+          <p class="footer-text">顔認識システム &copy; {{ currentYear }} | 高度な顔認識技術
+          </p>
+        </el-footer>
+      </el-container>
+    </template>
+
+    <!-- フォールバック状況 - 空状態を表示 -->
+    <div v-else class="empty-state-screen">
+      <div class="empty-content">
+        <el-empty description="不明な状態、ページを更新してもう一度お試しください" />
+        <el-button @click="refreshPage">ページを更新</el-button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElNotification } from 'element-plus';
 import { User, ArrowDown, Management } from '@element-plus/icons-vue';
-import apiClient from './utils/api';
+import apiClient, { 
+  setRouter,
+  getSessionToken,
+  setSessionToken,
+  initializeSession,
+  handleSessionExpired,
+  handleSessionDeleted,
+  retryCreateSession as apiRetryCreateSession,
+  checkExistingSession,
+  reinitializeSession
+} from './utils/api';
 import { provide } from 'vue';
 import SessionManager from './components/SessionManager.vue';
 
@@ -95,172 +117,89 @@ const userInfo = ref({});
 const loading = ref(true);
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-// 会话管理相关
+// セッション管理関連状態
 const sessionToken = ref('');
-const initializing = ref(true);
-const sessionCreationFailed = ref(false);
-const creatingSession = ref(false);
-const sessionCheckPromise = ref(null); // 防止重复创建会话
+const sessionChecking = ref(true);  // セッション確認中
+const sessionCreationFailed = ref(false);  // セッション作成失敗
+const errorMessage = ref('');  // エラーメッセージ
+const retrying = ref(false);  // 再試行中
+const hasValidSessionComputed = ref(false);  // 有効なセッションがあるかどうか
 
-// 计算属性
-const hasValidSession = computed(() => {
-  return sessionToken.value !== '';
+// 算出プロパティ - セッションが有効かどうか
+const isSessionValid = computed(() => {
+  const result = hasValidSessionComputed.value && sessionToken.value !== '';
+  console.log('[APP.VUE] セッション有効性計算:', result, '| トークン存在:', !!sessionToken.value);
+  return result;
 });
+
+// セッション作成を再試行
+const handleRetryCreateSession = async () => {
+  console.log('[APP.VUE] セッション作成の再試行を開始');
+  retrying.value = true;
+  sessionCreationFailed.value = false;
+  errorMessage.value = '';
+  
+  try {
+    // api.jsの再試行メソッドを使用
+    const result = await apiRetryCreateSession();
+    console.log('[APP.VUE] 再試行結果:', result);
+    
+    if (result.success) {
+      sessionToken.value = getSessionToken();
+      hasValidSessionComputed.value = true;
+      sessionChecking.value = false;
+      retrying.value = false;
+      ElMessage.success('セッション作成が成功しました！');
+      // 成功後にユーザーのログイン状態を確認
+      await checkLoginStatus();
+    } else {
+      sessionCreationFailed.value = true;
+      errorMessage.value = result.error || '会话创建失败';
+      retrying.value = false;
+    }
+  } catch (error) {
+    console.error('[APP.VUE] セッション作成再試行例外:', error);
+    sessionCreationFailed.value = true;
+    errorMessage.value = error.message || '不明なエラー';
+    retrying.value = false;
+  }
+};
+
+// 現在のセッション状態を確認
+const checkCurrentSessionStatus = async () => {
+  try {
+    const result = await checkExistingSession();
+    if (result.hasSession) {
+      ElMessage.info('既存セッションを検出しました。セッションの有効期限が切れるまでお待ちください');
+    } else {
+      ElMessage.info('現在アクティブなセッションはありません。再作成を試すことができます');
+    }
+  } catch (error) {
+    ElMessage.error('セッション状態の確認に失敗しました');
+  }
+};
+
+// ページを更新
+const refreshPage = () => {
+  window.location.reload();
+};
 
 // 子コンポーネントにuserInfoを提供
 provide('userInfo', userInfo);
 
-// 提供会话令牌给子组件
+// セッショントークンを子コンポーネントに提供
 provide('sessionToken', sessionToken);
-provide('hasValidSession', hasValidSession);
+provide('hasValidSession', hasValidSessionComputed);
 
-// 会话管理函数
-const createNewSession = async () => {
-  // 防止重复创建会话
-  if (creatingSession.value || sessionCheckPromise.value) {
-    console.log('会话创建已在进行中，跳过重复请求');
-    return sessionCheckPromise.value;
-  }
+// sessionTokenの変化を監視し、api.jsに同期
+watch(sessionToken, (newToken, oldToken) => {
+  console.log('[APP.VUE] sessionToken更新:', oldToken, '->', newToken);
+  setSessionToken(newToken);
+  // セッション状態の再計算をトリガー
+  console.log('[APP.VUE] 更新後のセッション状態:', hasValidSessionComputed.value);
+});
 
-  creatingSession.value = true;
-  sessionCheckPromise.value = (async () => {
-    try {
-      console.log('开始创建新会话...');
-      const response = await apiClient.post('/api/v1/session/create');
-      
-      if (response.data.code === 200 && response.data.token) {
-        sessionToken.value = response.data.token;
-        localStorage.setItem('session_token', sessionToken.value);
-        sessionCreationFailed.value = false;
-        ElNotification.success({
-          title: '会话创建成功',
-          message: `会话有效期: ${Math.floor(response.data.expires_in / 3600)}小时`,
-          duration: 3000
-        });
-        console.log('会话创建成功');
-        return true;
-      } else {
-        throw new Error(response.data.detail || '会话创建失败');
-      }
-    } catch (error) {
-      console.error('创建会话失败:', error);
-      sessionCreationFailed.value = true;
-      sessionToken.value = '';
-      localStorage.removeItem('session_token');
-      
-      const errorMsg = error.response?.data?.detail || error.message || '未知错误';
-      ElNotification.error({
-        title: '会话创建失败',
-        message: errorMsg,
-        duration: 5000
-      });
-      return false;
-    } finally {
-      creatingSession.value = false;
-      sessionCheckPromise.value = null;
-    }
-  })();
-  
-  return sessionCheckPromise.value;
-};
 
-const validateStoredSession = async () => {
-  try {
-    console.log('验证存储的会话令牌...');
-    const response = await apiClient.get('/api/v1/session/info', {
-      headers: {
-        'Session-Token': sessionToken.value
-      }
-    });
-    
-    if (response.data.code === 200 && !response.data.is_expired) {
-      console.log('存储的会话令牌有效');
-      return true;
-    } else {
-      console.log('存储的会话令牌已过期或无效');
-      sessionToken.value = '';
-      localStorage.removeItem('session_token');
-      return false;
-    }
-  } catch (error) {
-    console.log('存储的会话令牌验证失败:', error.message);
-    sessionToken.value = '';
-    localStorage.removeItem('session_token');
-    return false;
-  }
-};
-
-const initializeSession = async () => {
-  initializing.value = true;
-  sessionCreationFailed.value = false;
-  
-  try {
-    // 首先检查本地存储的会话令牌
-    const storedToken = localStorage.getItem('session_token');
-    if (storedToken) {
-      sessionToken.value = storedToken;
-      const isValid = await validateStoredSession();
-      if (isValid) {
-        console.log('使用有效的存储会话');
-        initializing.value = false;
-        return;
-      }
-    }
-    
-    // 尝试创建新会话
-    console.log('尝试创建新会话...');
-    const sessionCreated = await createNewSession();
-    if (sessionCreated) {
-      console.log('新会话创建成功');
-    } else {
-      console.log('新会话创建失败');
-    }
-  } finally {
-    initializing.value = false;
-  }
-};
-
-// 事件处理函数
-const handleSessionExpired = () => {
-  console.log('会话已过期');
-  sessionToken.value = '';
-  localStorage.removeItem('session_token');
-  sessionCreationFailed.value = false;
-  ElNotification.warning({
-    title: '会话已过期',
-    message: '请重新创建会话',
-    duration: 3000
-  });
-};
-
-const handleSessionDeleted = () => {
-  console.log('会话已被删除');
-  sessionToken.value = '';
-  localStorage.removeItem('session_token');
-  sessionCreationFailed.value = false;
-  showMainApp.value = false;
-  router.push('/login');
-  ElMessage.info('会话已删除，请重新登录');
-};
-
-const retryCreateSession = async () => {
-  sessionCreationFailed.value = false;
-  await initializeSession();
-};
-
-const checkExistingSession = async () => {
-  try {
-    const response = await apiClient.get('/api/v1/session/current');
-    if (response.data.code === 200) {
-      ElMessage.info('检测到现有会话，请等待会话过期后再试');
-    } else {
-      ElMessage.info('当前无活跃会话，可以尝试重新创建');
-      sessionCreationFailed.value = false;
-    }
-  } catch (error) {
-    ElMessage.error('检查会话状态失败');
-  }
-};
 
 // APIからユーザー情報を取得
 const fetchUserInfo = async () => {
@@ -268,7 +207,7 @@ const fetchUserInfo = async () => {
     loading.value = true;
 
     // ローカルストレージからトークンを取得
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('user_token');
 
     // 認証ヘッダー付きでAPIリクエストを行う
     const response = await apiClient.get('/api/v1/user/me', {
@@ -286,7 +225,7 @@ const fetchUserInfo = async () => {
       // トークンが無効、再度ログインが必要
       // console.error('トークンが無効です、ログインページにリダイレクトします');
       // ローカルストレージをクリア
-      localStorage.removeItem('token'); // トークンも削除
+      localStorage.removeItem('user_token'); // トークンも削除
       localStorage.removeItem('username'); // ユーザー名も削除
       localStorage.removeItem('userInfo'); // ユーザー情報も削除
     } else {
@@ -297,7 +236,7 @@ const fetchUserInfo = async () => {
       // トークンが無効、再度ログインが必要
       // console.error('トークンが無効です、ログインページにリダイレクトします');
       // ローカルストレージをクリア
-      localStorage.removeItem('token'); // トークンも削除
+      localStorage.removeItem('user_token'); // トークンも削除
       localStorage.removeItem('uesrname'); // ユーザー名も削除
     } else {
       // console.error('ユーザー情報の取得中にエラーが発生しました:', error);
@@ -308,36 +247,31 @@ const fetchUserInfo = async () => {
 };
 
 const checkLoginStatus = async () => {
+  console.log('[APP.VUE] ログイン状態を確認 - ルート:', route.path, '| セッション有効:', hasValidSessionComputed.value);
+  
   try {
-    // 检查是否有有效的会话令牌
-    if (!hasValidSession.value) {
-      // 如果不在登录/注册页面，重定向到登录页
-      if (route.path !== '/login' && route.path !== '/signup' && route.path !== '/') {
-        router.push('/login');
-      }
+    // 有効なセッショントークンがあるかどうかを確認
+    if (!hasValidSessionComputed.value) {
+      console.log('[APP.VUE] 有効なセッションなし');
       return;
     }
     
-    // userInfoの代わりにlocalStorageからユーザートークンを確認
-    const token = localStorage.getItem('token');
-    if (token) {
+    // ユーザー認証状態を確認
+    const userToken = localStorage.getItem('user_token');
+    console.log('[APP.VUE] ユーザー認証状態:', !!userToken);
+    
+    if (userToken) {
       await fetchUserInfo();
-      // 現在ログイン/サインアップページにいるが認証されている場合、ルートに基づいてリダイレクト
+      // ログイン/登録ページにいるが認証済みの場合、ユーザーページにジャンプ
       if (route.path === '/login' || route.path === '/signup') {
-        // ログインページから来た場合は、デフォルトページ（ユーザー）に移動
+        console.log('[APP.VUE] 認証済みユーザーがログインページにアクセス、ユーザーページにジャンプ');
         router.push('/user');
       }
     } else {
-      // 用户未登录，但会话有效，可以显示主界面
-      // 不再强制重定向到登录页，允许用户先看到界面再登录
-      if (route.path !== '/login' && route.path !== '/signup' && route.path !== '/') {
-        // 可以选择是否重定向到登录页，或者保持当前位置
-        // router.push('/login');
-      }
+      console.log('[APP.VUE] セッション有効だが未認証');
     }
   } catch (error) {
-    console.error('登录状态检查失败:', error);
-    // 即使检查失败，只要有有效会话就保持显示主界面
+    console.error('[APP.VUE] ログイン状態確認例外:', error);
   }
 };
 
@@ -347,7 +281,7 @@ provide('checkLoginStatus', checkLoginStatus);
 const logout = async () => {
   try {
     // ローカルストレージからトークンとユーザー情報をクリア
-    localStorage.removeItem('token');
+    localStorage.removeItem('user_token');
     localStorage.removeItem('username');
     localStorage.removeItem('userInfo'); // ユーザー情報も削除
     username.value = '';
@@ -369,25 +303,88 @@ const goToAdmin = () => {
   router.push('/admin');
 };
 
+
+
 onMounted(async () => {
-  // 首先初始化会话
-  await initializeSession();
-  // 然后检查登录状态
-  if (hasValidSession.value) {
+  console.log('[APP.VUE] アプリケーションマウント開始');
+  console.log('[APP.VUE] 現在のルート:', route.path);
+  console.log('[APP.VUE] ストレージ状態 - session:', !!localStorage.getItem('session_token'), 'user:', !!localStorage.getItem('user_token'));
+  
+  // ルーターインスタンスを設定
+  setRouter(router);
+  
+  // セッションチェックを実行
+  await performSessionCheck();
+  
+  // セッション再初期化イベントを監視
+  window.addEventListener('reinitializeSession', handleReinitializeSession);
+});
+
+// セッションチェックのコアロジックを実行
+const performSessionCheck = async () => {
+  console.log('[APP.VUE] セッションチェックを開始');
+  sessionChecking.value = true;
+  sessionCreationFailed.value = false;
+  errorMessage.value = '';
+  
+  try {
+    const result = await initializeSession();
+    console.log('[APP.VUE] セッションチェック結果:', result);
+    
+    if (result.success) {
+      sessionToken.value = getSessionToken();
+      hasValidSessionComputed.value = true;
+      sessionChecking.value = false;
+      console.log('[APP.VUE] セッションチェック完了、ログイン状態の確認を準備');
+      await checkLoginStatus();
+    } else {
+      // セッション作成失敗
+      sessionCreationFailed.value = true;
+      hasValidSessionComputed.value = false;
+      sessionChecking.value = false;
+      errorMessage.value = result.error || '会话创建失败';
+      console.log('[APP.VUE] セッション作成失敗、エラー画面を表示');
+    }
+  } catch (error) {
+    console.error('[APP.VUE] セッションチェック例外:', error);
+    sessionCreationFailed.value = true;
+    hasValidSessionComputed.value = false;
+    sessionChecking.value = false;
+    errorMessage.value = error.message || 'セッションチェック中に不明なエラーが発生しました';
+  }
+};
+
+// セッション再初期化イベントを処理
+const handleReinitializeSession = async () => {
+  console.log('[APP.VUE] セッション再初期化イベントを受信');
+  await performSessionCheck();
+};
+
+// コンポーネントアンマウント時にクリーンアップ
+onUnmounted(() => {
+  window.removeEventListener('reinitializeSession', handleReinitializeSession);
+});
+
+onUnmounted(() => {
+  // イベントリスナーをクリーンアップ
+  window.removeEventListener('reinitializeSession', reinitializeSession);
+});
+
+// セッション有効性の変化を監視
+watch(isSessionValid, (newVal, oldVal) => {
+  console.log('[APP.VUE] セッション有効性変化:', oldVal, '->', newVal);
+  if (newVal && !oldVal) {
+    console.log('[APP.VUE] セッションが有効になり、ログイン状態を確認');
     checkLoginStatus();
   }
 });
 
-// 监听会话状态变化
-watch(hasValidSession, (newVal) => {
-  if (newVal) {
+// ルート変化を監視、セッション有効時にログイン状態を確認
+watch(() => route.path, (newPath) => {
+  if (isSessionValid.value) {
+    console.log('[APP.VUE] ルート変化、ログイン状態を確認:', newPath);
     checkLoginStatus();
   }
-});
-
-// ルート変更を監視
-router.afterEach(() => {
-  checkLoginStatus();
 });
 
 </script>
@@ -489,7 +486,7 @@ router.afterEach(() => {
   min-height: calc(100vh - 80px - 65px);
 }
 
-.initializing-screen {
+.session-check-screen {
   position: fixed;
   top: 0;
   left: 0;
@@ -502,13 +499,13 @@ router.afterEach(() => {
   z-index: 2000;
 }
 
-.loading-content {
+.checking-content {
   text-align: center;
   max-width: 400px;
   padding: 20px;
 }
 
-.loading-text {
+.checking-text {
   margin-top: 20px;
   font-size: 16px;
   color: #606266;
@@ -530,6 +527,25 @@ router.afterEach(() => {
 .error-content {
   max-width: 500px;
   width: 100%;
+  padding: 20px;
+}
+
+.empty-state-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.empty-content {
+  text-align: center;
+  max-width: 400px;
   padding: 20px;
 }
 </style>

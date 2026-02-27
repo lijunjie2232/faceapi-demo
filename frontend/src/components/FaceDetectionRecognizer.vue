@@ -359,7 +359,12 @@ const verifyFace = async () => {
 // トークンを使用してユーザー情報を取得する関数
 const getUserInfo = async (token) => {
   try {
-    const response = await apiClient.get('/api/v1/user/me');
+    // 認証ヘッダー付きでAPIリクエストを行う
+    const response = await apiClient.get('/api/v1/user/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`  // Bearerトークン形式を使用
+      }
+    });
 
     if (response.data.code === 200) {
       userInfo.value = response.data.data;

@@ -1,0 +1,56 @@
+[project]
+name = "faceapi"
+version = "1.0.0"
+description = "A face recognition system with FastAPI backend and Vue frontend"
+authors = [{ name = "Your Name", email = "your.email@example.com" }]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    "numpy",
+    "opencv-python",
+    "opencv-python-headless",
+    "pillow>=9.0.0",
+    "pydantic>=2.0.0",
+    "pydantic_settings",
+    "passlib",
+    "PyJWT",
+    "aerich[toml]",
+    "loguru",
+    "pydantic[email]",
+    "onnxruntime",
+    "cachetools",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "flake8>=6.0.0",
+]
+
+[project.scripts]
+faceapi = "faceapi.__cli__:main"
+faceapi-dev = "faceapi.__cli__:dev"
+faceapi-prod = "faceapi.__cli__:prod"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["faceapi*"]
+exclude = ["migrations*", "tests*"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "flake8>=6.0.0",
+]

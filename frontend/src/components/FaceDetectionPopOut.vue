@@ -33,7 +33,7 @@
     <div v-if="capturedImage" class="image-preview-container">
       <h3>確認</h3>
       <img :src="capturedImage" alt="Captured face image" class="captured-image-preview" />
-      <p>Please confirm to upload this image</p>
+      <p>この画像をアップロードすることを確認してください</p>
     </div>
 
     <div v-show="isCameraOpen && !capturedImage" class="camera-container">
@@ -49,17 +49,17 @@
     </div>
 
     <div v-if="!isCameraOpen && !loadingModels && !capturedImage" class="placeholder-container">
-      <el-empty description="Camera is not active" :image-size="150">
-        <p>"Start Camera"をクリックして顔検出を開始してください</p>
+      <el-empty description="カメラがアクティブではありません" :image-size="150">
+        <p>「カメラ開始」をクリックして顔検出を開始してください</p>
       </el-empty>
     </div>
 
     <!-- 状態に応じた異なるボタンアクション -->
     <div class="button-actions">
-      <el-button @click="handleClose">{{ capturedImage ? '取り消し' : '閉める' }}</el-button>
+      <el-button @click="handleClose">{{ capturedImage ? '取り消し' : '閉じる' }}</el-button>
       
       <div class="confirmation-buttons" v-if="capturedImage">
-        <el-button @click="retakeImage">再開</el-button>
+        <el-button @click="retakeImage">再撮影</el-button>
         <el-button type="success" @click="confirmAndSendImage(props._handler)" class="confirm-btn">
           <el-icon>
             <Check />
