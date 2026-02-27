@@ -1,4 +1,3 @@
----
 title: FaceAPI Demo
 emoji: 🐢
 colorFrom: purple
