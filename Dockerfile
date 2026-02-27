@@ -29,6 +29,7 @@ WORKDIR /app
 
 # Python依存関係のインストール
 COPY backend ./backend
+RUN pip install -U setuptools
 RUN pip install --no-cache-dir -e ./backend
 
 # バックエンドソースコードのコピー
