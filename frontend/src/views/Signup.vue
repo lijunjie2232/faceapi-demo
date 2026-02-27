@@ -3,7 +3,7 @@
     <el-card class="signup-card">
       <h2>サインアップ</h2>
       
-      <!-- Demo Notice -->
+      <!-- デモ通知 -->
       <DemoNotice :is-login-page="true" :show-session-info="true" :floating="false" />
       <el-form :model="signupForm" :rules="signupRules" ref="signupFormRef" label-width="150px" class="signup-form">
         <el-form-item label="ユーザー名" prop="username">

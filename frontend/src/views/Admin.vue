@@ -1,7 +1,7 @@
 <template>
   <div class="admin-panel">
     <el-main class="app-main">
-      <!-- Demo Notice -->
+      <!-- デモ通知 -->
       <DemoNotice />
       
       <el-tabs v-model="activeTab" type="border-card" class="main-tabs">

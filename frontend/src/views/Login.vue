@@ -3,10 +3,10 @@
     <el-card class="login-card">
       <h2>ログイン</h2>
       
-      <!-- Demo Notice -->
+      <!-- デモ通知 -->
       <DemoNotice :is-login-page="true" :floating="false" />
       
-      <!-- Admin Info Alert -->
+      <!-- 管理者情報アラート -->
       <el-alert
         title="管理者アカウント情報"
         type="info"
@@ -87,21 +87,23 @@ const handleLogin = async () => {
     })
 
     // 実際のフォーマットに応じてレスポンスを処理
-    if (response.code !== 200) {
+    if (response.data.code === 200) {
       const { token, token_type } = response.data.data
 
       // アクセストークンを正しいキーでlocalStorageに保存
-      localStorage.setItem('token', `${token}`)
+      localStorage.setItem('user_token', `${token}`)
       localStorage.setItem('token_type', `${token_type}`)
 
       ElMessage.success('ログイン成功！')
 
       // ルートパラメータからリダイレクトパスを取得（ある場合）
       const redirectPath = route.query.redirect || '/user'
+
+      console.log(`Redirecting to: ${redirectPath}`)
       // 意図したページまたはホームページにリダイレクト
       router.push(redirectPath)
     } else {
-      ElMessage.error(response.message || 'ログインに失敗しました')
+      ElMessage.error(response.data.detail || 'ログインに失敗しました')
     }
   } catch (error) {
     // console.error('ログインエラー:', error)
@@ -124,7 +126,7 @@ const openFaceRecognizer = () => {
 const handleFaceVerification = (verificationData) => {
   if (verificationData && verificationData.token) {
     // アクセストークンを正しいキーでlocalStorageに保存
-    localStorage.setItem('token', `${verificationData.token}` || '')
+    localStorage.setItem('user_token', `${verificationData.token}`)
     localStorage.setItem('token_type', `${verificationData.token_type || 'Bearer'}`)
 
     ElMessage.success('顔ログイン成功！')
