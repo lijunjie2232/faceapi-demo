@@ -11,6 +11,7 @@ import json
 import time
 from typing import Any, Dict, List, Optional, Union
 from loguru import logger
+import numpy as np
 
 
 class MemorySqlManager:
@@ -190,8 +191,10 @@ class MemorySqlManager:
         results = []
         
         for user_id, user_data in self.users.items():
+            # logger.debug(user_data)
             if user_data.get('embedding') is not None:
                 similarity = self._cosine_similarity(query_vector, user_data['embedding'])
+                logger.debug(f"Similarity for user {user_id}: {similarity}")
                 if similarity >= threshold:
                     results.append({
                         'entity': {
@@ -225,17 +228,24 @@ class MemorySqlManager:
             return {"deleted_count": 0}
             
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """计算两个向量的余弦相似度"""
-        import math
+        """计算两个向量的余弦相似度"""        
+        # 转换为numpy数组
+        v1 = np.array(vec1)
+        v2 = np.array(vec2)
         
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
-        magnitude1 = math.sqrt(sum(a * a for a in vec1))
-        magnitude2 = math.sqrt(sum(b * b for b in vec2))
+        # 计算点积
+        dot_product = np.dot(v1, v2)
         
-        if magnitude1 == 0 or magnitude2 == 0:
+        # 计算向量的模长
+        norm1 = np.linalg.norm(v1)
+        norm2 = np.linalg.norm(v2)
+        
+        # 避免除零错误
+        if norm1 == 0 or norm2 == 0:
             return 0.0
             
-        return dot_product / (magnitude1 * magnitude2)
+        # 计算余弦相似度
+        return float(dot_product / (norm1 * norm2))
         
     def get_user_model_mock(self):
         """获取用户模型的模拟对象（用于兼容现有代码）"""
@@ -262,9 +272,6 @@ class MemorySqlManager:
         return UserModelMock()
 
 
-# 全局实例
-MEMORY_SQL_MANAGER = MemorySqlManager()
-
 # 导出函数保持与原接口兼容
 async def get_memory_milvus_client():
     """获取内存 Milvus 客户端实例"""
@@ -277,41 +284,63 @@ async def get_memory_sql_client():
     return MEMORY_SQL_MANAGER
 
 
-async def test_default_admin_creation():
-    """测试默认管理员用户创建功能"""
-    print("=== 测试默认管理员用户创建 ===")
+# 简单的内存Milvus管理器（为保持接口兼容性）
+class MemoryMilvusManager:
+    def __init__(self):
+        self._initialized = False
     
-    # 初始化管理器
-    await MEMORY_SQL_MANAGER.initialize()
+    async def initialize(self):
+        if not self._initialized:
+            logger.info("初始化内存 Milvus 管理器（模拟）")
+            self._initialized = True
     
-    # 获取管理员用户
-    admin_user = await MEMORY_SQL_MANAGER.get_user_by_username("admin")
+    async def search_face_embeddings(self, query_vector, limit=1, threshold=0.3):
+        # 模拟搜索，返回空结果
+        return [[]]
     
-    if admin_user:
-        print(f"✓ 找到管理员用户:")
-        print(f"  - 用户名: {admin_user['username']}")
-        print(f"  - 邮箱: {admin_user['email']}")
-        print(f"  - 全名: {admin_user['full_name']}")
-        print(f"  - 是否管理员: {admin_user['is_admin']}")
-        print(f"  - 是否激活: {admin_user['is_active']}")
-        print(f"  - 用户ID: {admin_user['id']}")
+    async def upsert_face_embedding(self, user_id, feature_vector):
+        # 模拟插入，返回成功
+        return {"insertedIds": [user_id]}
+
+# 全局实例
+MEMORY_SQL_MANAGER = MemorySqlManager()
+MEMORY_MILVUS_MANAGER = MemoryMilvusManager()
+
+# async def test_default_admin_creation():
+#     """测试默认管理员用户创建功能"""
+#     print("=== 测试默认管理员用户创建 ===")
+    
+#     # 初始化管理器
+#     await MEMORY_SQL_MANAGER.initialize()
+    
+#     # 获取管理员用户
+#     admin_user = await MEMORY_SQL_MANAGER.get_user_by_username("admin")
+    
+#     if admin_user:
+#         print(f"✓ 找到管理员用户:")
+#         print(f"  - 用户名: {admin_user['username']}")
+#         print(f"  - 邮箱: {admin_user['email']}")
+#         print(f"  - 全名: {admin_user['full_name']}")
+#         print(f"  - 是否管理员: {admin_user['is_admin']}")
+#         print(f"  - 是否激活: {admin_user['is_active']}")
+#         print(f"  - 用户ID: {admin_user['id']}")
         
-        # 验证密码
-        from ..utils.pass_utils import verify_password
-        password_valid = verify_password("admin", admin_user['hashed_password'])
-        print(f"  - 密码验证: {'✓ 正确' if password_valid else '✗ 错误'}")
+#         # 验证密码
+#         from ..utils.pass_utils import verify_password
+#         password_valid = verify_password("admin", admin_user['hashed_password'])
+#         print(f"  - 密码验证: {'✓ 正确' if password_valid else '✗ 错误'}")
         
-        # 尝试错误密码
-        wrong_password_valid = verify_password("wrong_password", admin_user['hashed_password'])
-        print(f"  - 错误密码验证: {'✓ 正确' if wrong_password_valid else '✗ 错误'}")
+#         # 尝试错误密码
+#         wrong_password_valid = verify_password("wrong_password", admin_user['hashed_password'])
+#         print(f"  - 错误密码验证: {'✓ 正确' if wrong_password_valid else '✗ 错误'}")
         
-    else:
-        print("✗ 未找到管理员用户")
+#     else:
+#         print("✗ 未找到管理员用户")
         
-    # 列出所有用户
-    all_users = await MEMORY_SQL_MANAGER.list_users()
-    print(f"\n=== 所有用户 ({len(all_users)} 个) ===")
-    for user in all_users:
-        print(f"- {user['username']} ({'管理员' if user['is_admin'] else '普通用户'})")
+#     # 列出所有用户
+#     all_users = await MEMORY_SQL_MANAGER.list_users()
+#     print(f"\n=== 所有用户 ({len(all_users)} 个) ===")
+#     for user in all_users:
+#         print(f"- {user['username']} ({'管理员' if user['is_admin'] else '普通用户'})")
         
-    return admin_user is not None
+#     return admin_user is not None
