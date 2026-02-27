@@ -209,3 +209,6 @@ __marimo__/
 dist/
 tests/
 static/
+debug.py
+
+*.onnx
